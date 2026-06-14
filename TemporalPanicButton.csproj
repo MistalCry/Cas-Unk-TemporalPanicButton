@@ -1,0 +1,136 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>16c6b2d5-3e93-4d6e-8e5f-86a1d905fbb5</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>TemporalPanicButton</RootNamespace>
+    <AssemblyName>TemporalPanicButton</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="0Harmony20">
+      <HintPath>$(BepInExCoreDir)\0Harmony20.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(GameManagedDir)\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExCoreDir)\BepInEx.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="UnityEngine">
+      <HintPath>$(GameManagedDir)\UnityEngine.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.AudioModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.Physics2DModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(GameManagedDir)\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.UIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestAudioModule">
+      <HintPath>$(GameManagedDir)\UnityEngine.UnityWebRequestAudioModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="TemporalPanicButtonPlugin.cs" />
+    <Compile Include="ModSettings.cs" />
+    <Compile Include="Patches\DynamitePatches.cs" />
+    <Compile Include="Patches\HazardPatches.cs" />
+    <Compile Include="Patches\KrokMpCompatibilityPatches.cs" />
+    <Compile Include="Patches\LocalePatch.cs" />
+    <Compile Include="Patches\MedicalPatches.cs" />
+    <Compile Include="Patches\MinePatches.cs" />
+    <Compile Include="Patches\ObserverPosePatches.cs" />
+    <Compile Include="Patches\PlayerActionPatches.cs" />
+    <Compile Include="Patches\MedicalFocusPatches.cs" />
+    <Compile Include="Patches\SettingsPatch.cs" />
+    <Compile Include="Patches\TrapFreezePatches.cs" />
+    <Compile Include="Patches\TurretPatches.cs" />
+    <Compile Include="Runtime\KrokMpBridge.cs" />
+    <Compile Include="Runtime\KrokMpPayload.cs" />
+    <Compile Include="Runtime\KrokPlayerResolver.cs" />
+    <Compile Include="Runtime\DynamiteFuseCutFeature.cs" />
+    <Compile Include="Runtime\PendingTimeStopActions.cs" />
+    <Compile Include="Runtime\PlayerVitalsSnapshot.cs" />
+    <Compile Include="Runtime\TimeStopBulletPreview.cs" />
+    <Compile Include="Runtime\TimeStopAudio.cs" />
+    <Compile Include="Runtime\TimeStopController.cs" />
+    <Compile Include="Runtime\TimeStopEffect.cs" />
+    <Compile Include="Runtime\TimeStopHazardAudio.cs" />
+    <Compile Include="Runtime\TimeStopMedicalUi.cs" />
+    <Compile Include="Runtime\TimeStopPoseVisual.cs" />
+    <Compile Include="Runtime\TimeStopTimerDisplay.cs" />
+    <Compile Include="Runtime\WorldFreezeService.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <Target Name="ValidateReferencePaths" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition=" '$(GameManagedDir)' == '' " Text="Set GameManagedDir to the game's Managed folder, for example /p:GameManagedDir=&quot;C:\Path\To\CasualtiesUnknown_Data\Managed&quot;." />
+    <Error Condition=" '$(BepInExCoreDir)' == '' " Text="Set BepInExCoreDir to the BepInEx core folder, for example /p:BepInExCoreDir=&quot;C:\Path\To\BepInEx\core&quot;." />
+    <Error Condition=" '$(GameManagedDir)' != '' And !Exists('$(GameManagedDir)\Assembly-CSharp.dll') " Text="Assembly-CSharp.dll was not found in GameManagedDir: $(GameManagedDir)" />
+    <Error Condition=" '$(BepInExCoreDir)' != '' And !Exists('$(BepInExCoreDir)\BepInEx.dll') " Text="BepInEx.dll was not found in BepInExCoreDir: $(BepInExCoreDir)" />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

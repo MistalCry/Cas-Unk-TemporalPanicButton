@@ -1,0 +1,12 @@
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj\Release\TemporalPanicButton.csproj.AssemblyReference.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj\Release\TemporalPanicButton.csproj.CoreCompileInputs.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\bin\Release\TemporalPanicButton.dll
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\bin\Release\TemporalPanicButton.pdb
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj\Release\TemporalPanicButton.dll
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj\Release\TemporalPanicButton.pdb
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\a90bd8590dfd8e07\TemporalPanicButton\bin\Release\TemporalPanicButton.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\a90bd8590dfd8e07\TemporalPanicButton\bin\Release\TemporalPanicButton.pdb
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\a90bd8590dfd8e07\TemporalPanicButton\obj\Release\TemporalPanicButton.csproj.AssemblyReference.cache
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\a90bd8590dfd8e07\TemporalPanicButton\obj\Release\TemporalPanicButton.csproj.CoreCompileInputs.cache
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\a90bd8590dfd8e07\TemporalPanicButton\obj\Release\TemporalPanicButton.dll
+C:\Users\CodexSandboxOffline\.codex\.sandbox\cwd\a90bd8590dfd8e07\TemporalPanicButton\obj\Release\TemporalPanicButton.pdb
