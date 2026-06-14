@@ -1,4 +1,5 @@
 # Temporal Panic Button
+<img width="410" height="230" alt="Adobe Express - 2026-06-11 09-12-59 - Trim" src="https://github.com/user-attachments/assets/3d7d9764-da48-41a8-82b2-7f5d09875e0a" />
 
 **中文/ENGLISH**
 
