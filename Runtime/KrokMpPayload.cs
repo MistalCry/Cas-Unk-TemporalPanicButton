@@ -4,14 +4,14 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Stable wire format for KrokMP time-stop messages.
-    /// Format: version|casterClientId|duration|originX|originY|hazardKind|stopId
+    /// KrokMP 时停消息的稳定文本格式。
+    /// 格式：version|casterClientId|duration|originX|originY|hazardKind|stopId|originInstanceId。
     /// </summary>
     internal static class KrokMpPayload
     {
         private const string PayloadVersion = "1";
 
-        public static string Build(uint casterClientId, float duration, Vector2 origin, HazardKind hazard, uint stopId)
+        public static string Build(uint casterClientId, float duration, Vector2 origin, HazardKind hazard, uint stopId, string originInstanceId)
         {
             return string.Join("|", new[]
             {
@@ -21,13 +21,14 @@ namespace TemporalPanicButton.Runtime
                 origin.x.ToString("R", CultureInfo.InvariantCulture),
                 origin.y.ToString("R", CultureInfo.InvariantCulture),
                 ((int)hazard).ToString(CultureInfo.InvariantCulture),
-                stopId.ToString(CultureInfo.InvariantCulture)
+                stopId.ToString(CultureInfo.InvariantCulture),
+                originInstanceId ?? string.Empty
             });
         }
 
         public static string ReplaceCaster(string payload, uint clientId)
         {
-            // Host-side correction keeps client payload construction simple and prevents spoofed caster ids.
+            // 主机统一修正 casterId，既简化客机发包，也避免客机伪造其他玩家身份。
             string[] parts = payload.Split('|');
             if (parts.Length < 7)
                 return payload;
@@ -54,7 +55,8 @@ namespace TemporalPanicButton.Runtime
                 !uint.TryParse(parts[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out uint stopId))
                 return false;
 
-            stopEvent = new MultiplayerTimeStopEvent(casterClientId, Mathf.Clamp(duration, 0.1f, 120f), new Vector2(x, y), (HazardKind)hazardValue, stopId);
+            string originInstanceId = parts.Length >= 8 ? parts[7] : string.Empty;
+            stopEvent = new MultiplayerTimeStopEvent(casterClientId, Mathf.Clamp(duration, 0.1f, 120f), new Vector2(x, y), (HazardKind)hazardValue, stopId, originInstanceId);
             return true;
         }
     }

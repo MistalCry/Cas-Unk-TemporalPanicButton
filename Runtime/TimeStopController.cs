@@ -1,24 +1,28 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using UnityEngine;
 
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Central state machine for local and multiplayer time stops.
-    /// Harmony patches call the static surface here; the instance owns coroutines, cooldowns,
-    /// world freezing, pending shots/throws, and multiplayer overlap rules.
+    /// 时停核心状态机。
+    /// Harmony 补丁只调用这里的静态入口；真正的协程、冷却、世界冻结、延迟射击/投掷和多人重叠规则都由这个实例统一管理。
     /// </summary>
     internal sealed class TimeStopController : MonoBehaviour
     {
         private static TimeStopController instance;
-        private static readonly List<RemoteTurretSuppression> RemoteTurretSuppressions = new List<RemoteTurretSuppression>();
-        private const float RemoteTurretSuppressionRadius = 3f;
+        private static readonly List<RemoteTriggerSuppression> RemoteTriggerSuppressions = new List<RemoteTriggerSuppression>();
+        private const float RemoteTriggerSuppressionRadius = 3f;
+        private const float RemoteMineGraceSeconds = 1f;
         private const float RemoteTurretReloadGraceSeconds = 7f;
+        private const uint LocalStopKey = uint.MaxValue;
 
         private readonly Dictionary<uint, ActiveStop> multiplayerStops = new Dictionary<uint, ActiveStop>();
-        // Last processed stop id per caster prevents replaying the same KrokMP announcement twice.
-        private readonly Dictionary<uint, uint> lastStopIdsByCaster = new Dictionary<uint, uint>();
+        private readonly Dictionary<int, PlayerVitalsSnapshot> protectedBodyVitalsSnapshots = new Dictionary<int, PlayerVitalsSnapshot>();
+        // 每个内部 stopKey 记录最后处理过的 stopId，防止 KrokMP 回声包把同一次时停重复应用。
+        private readonly Dictionary<uint, uint> lastStopIdsByKey = new Dictionary<uint, uint>();
         private readonly PendingTimeStopActions pendingActions = new PendingTimeStopActions();
         private WorldFreezeService worldFreeze;
 
@@ -28,6 +32,7 @@ namespace TemporalPanicButton.Runtime
         private Coroutine routine;
         private float cooldownRemaining;
         private float cooldownTotal;
+        private bool cooldownPendingUntilStopEnds;
         private float remainingSeconds;
         private float activeTotalSeconds;
         private bool isMultiplayerStop;
@@ -38,6 +43,7 @@ namespace TemporalPanicButton.Runtime
         public static bool IsActive => instance != null && instance.routine != null;
         public static bool IsPlayableContext => HasPlayableLocalBody();
         public static bool IsLocalPlayerEmpowered => !IsActive || instance.IsLocalPlayerAllowedDuringStop();
+        public static bool IsLocalPlayerInOwnTimeStop => IsActive && instance.IsLocalPlayerAllowedDuringStop();
         public static bool IsReplayingPendingShots => instance != null && instance.pendingActions.IsReplayingShots;
         public static float ActiveRemainingSeconds => instance == null ? 0f : instance.remainingSeconds;
         public static float ActiveTotalSeconds => instance == null ? 0f : instance.activeTotalSeconds;
@@ -51,6 +57,25 @@ namespace TemporalPanicButton.Runtime
             total = 0f;
 
             return instance != null && instance.TryGetActiveDisplayInternal(out isLocalStop, out remaining, out total);
+        }
+
+        public static bool IsMultiplayerClientEmpowered(uint clientId)
+        {
+            if (instance == null || instance.routine == null)
+                return true;
+
+            if (!instance.isMultiplayerStop)
+                return true;
+
+            return instance.HasActiveStopForClient(clientId);
+        }
+
+        public static bool IsBodyEmpowered(Body body)
+        {
+            if (instance == null || instance.routine == null)
+                return true;
+
+            return instance.IsBodyAllowedDuringStop(body);
         }
 
         public static void Install(MonoBehaviour owner)
@@ -74,6 +99,11 @@ namespace TemporalPanicButton.Runtime
 
         public static bool TryTrigger(HazardKind hazard, Vector2 origin)
         {
+            return TryTrigger(hazard, origin, null);
+        }
+
+        public static bool TryTrigger(HazardKind hazard, Vector2 origin, Action beforeStartFeedback)
+        {
             if (instance == null || !ModSettings.Enabled)
                 return false;
 
@@ -90,27 +120,59 @@ namespace TemporalPanicButton.Runtime
             if (hazard == HazardKind.Manual && !ModSettings.ManualTrigger)
                 return false;
 
-            if (hazard == HazardKind.Turret && IsRemoteTurretTriggerSuppressed(origin))
+            if (hazard != HazardKind.Manual && IsRemoteTriggerSuppressed(hazard, origin))
                 return false;
 
-            // Multiplayer trigger ownership is delegated to KrokMP if it is actually ready.
-            // If KrokMP is running but the bridge is not ready, fail closed to avoid desync.
-            if (KrokMpBridge.IsAvailable)
-                return instance.TriggerMultiplayer(hazard, origin);
+            if (hazard != HazardKind.Manual && KrokMpCallGuard.IsKrokMpCallStackActive())
+                return false;
+
+            // KrokMP 真正可用时，时停归属交给主机广播。
+            // 如果联机已经运行但模组握手还没完成，宁可不触发，也不要产生本地单机时停导致不同步。
+            if (KrokMpBridge.IsMultiplayerFeatureUsable)
+                return instance.TriggerMultiplayer(hazard, origin, beforeStartFeedback);
 
             if (KrokMpBridge.IsNetworkRunning)
                 return false;
 
-            return instance.Trigger(origin);
+            return instance.Trigger(origin, beforeStartFeedback);
         }
 
-        public static void ReceiveMultiplayerTimeStop(string payload)
+        public static bool TryTriggerForMultiplayerClient(uint clientId, HazardKind hazard, Vector2 origin)
+        {
+            if (instance == null || !ModSettings.Enabled || clientId == uint.MaxValue)
+                return false;
+
+            ModSettings.SyncProgressionLockedSettings();
+            if (!ModSettings.TimeStopUnlocked)
+                return false;
+
+            if (hazard == HazardKind.Mine && !ModSettings.TriggerMines)
+                return false;
+
+            if (hazard == HazardKind.Turret && !ModSettings.TriggerTurrets)
+                return false;
+
+            if (hazard != HazardKind.Manual && IsRemoteTriggerSuppressed(hazard, origin))
+                return true;
+
+            if (instance.HasActiveStopForClient(clientId))
+                return true;
+
+            if (!KrokMpBridge.HasPresenceForClient(clientId))
+                return false;
+
+            return KrokMpBridge.TryAnnounceTriggerForClient(clientId, hazard, origin, ModSettings.Duration);
+        }
+
+        public static bool ReceiveMultiplayerTimeStop(string payload)
         {
             if (instance == null || !ModSettings.Enabled)
-                return;
+                return false;
 
             if (KrokMpBridge.TryParsePayload(payload, out MultiplayerTimeStopEvent stopEvent))
-                instance.ReceiveMultiplayerTimeStop(stopEvent);
+                return instance.ReceiveMultiplayerTimeStop(stopEvent);
+
+            return false;
         }
 
         public static bool QueueShotDuringStop(FireInfo info)
@@ -120,7 +182,7 @@ namespace TemporalPanicButton.Runtime
 
         public static bool QueueShotDuringStop(FireInfo info, bool replayOnClients, bool playDelayedSound)
         {
-            if (instance == null)
+            if (instance == null || !IsActive)
                 return false;
 
             return instance.pendingActions.QueueShot(info, replayOnClients, playDelayedSound);
@@ -134,52 +196,103 @@ namespace TemporalPanicButton.Runtime
             instance.pendingActions.QueueThrownItem(item, velocity, angularVelocity);
         }
 
-        private bool Trigger(Vector2 origin)
+        public static bool MaintainQueuedThrownItem(Item item)
         {
-            // During a local-only stop, repeat triggers are intentionally ignored but reported
-            // as handled so traps do not continue their vanilla action.
+            if (instance == null || item == null || !IsActive)
+                return false;
+
+            return instance.pendingActions.MaintainQueuedThrow(item);
+        }
+
+        public static bool MaintainFrozenRigidbody(Rigidbody2D body)
+        {
+            if (instance == null || body == null || !IsActive || instance.worldFreeze == null)
+                return false;
+
+            return instance.worldFreeze.MaintainIfFrozen(body);
+        }
+
+        public static bool MaintainNetworkSyncedItemDuringStop(Item item, Vector2 velocity, float angularVelocity)
+        {
+            if (instance == null || item == null || item.rb == null || !IsActive)
+                return false;
+
+            instance.pendingActions.UpdateQueuedThrowVelocityIfMoving(item, velocity, angularVelocity);
+
+            if (instance.pendingActions.MaintainQueuedThrow(item))
+                return true;
+
+            if (instance.worldFreeze != null && instance.worldFreeze.MaintainIfFrozen(item.rb))
+                return true;
+
+            // 有些物品是在初始冻结之后才从玩家手里丢到世界里的。
+            // 这些物品也要加入悬停队列，避免 KrokMP 刚体同步先把它们拉回下落状态。
+            instance.pendingActions.QueueThrownItem(item, velocity, angularVelocity);
+            return instance.pendingActions.MaintainQueuedThrow(item);
+        }
+
+        public static bool ProtectBodyVitalsDuringStop(Body body)
+        {
+            if (instance == null || body == null || !IsActive)
+                return false;
+
+            return instance.ProtectBodyVitalsDuringStopInternal(body);
+        }
+
+        private bool Trigger(Vector2 origin, Action beforeStartFeedback)
+        {
+            // 单人时停中重复触发会被当成“已处理”返回，防止陷阱继续执行原版伤害。
             if (routine != null)
                 return true;
 
             if (cooldownRemaining > 0f)
                 return false;
 
+            beforeStartFeedback?.Invoke();
             routine = StartCoroutine(TimeStopRoutine(origin));
             return true;
         }
 
-        private bool TriggerMultiplayer(HazardKind hazard, Vector2 origin)
+        private bool TriggerMultiplayer(HazardKind hazard, Vector2 origin, Action beforeStartFeedback)
         {
-            if (cooldownRemaining > 0f)
+            if (HasLocalMultiplayerStop())
+                return true;
+
+            if (cooldownRemaining > 0f || cooldownPendingUntilStopEnds)
                 return false;
 
             ModSettings.SyncProgressionLockedSettings();
+            beforeStartFeedback?.Invoke();
             return KrokMpBridge.TryAnnounceLocalTrigger(hazard, origin, ModSettings.Duration);
         }
 
-        private void ReceiveMultiplayerTimeStop(MultiplayerTimeStopEvent stopEvent)
+        private bool ReceiveMultiplayerTimeStop(MultiplayerTimeStopEvent stopEvent)
         {
             if (stopEvent.Duration <= 0f)
-                return;
+                return false;
 
-            if (lastStopIdsByCaster.TryGetValue(stopEvent.CasterClientId, out uint lastStopId) && lastStopId == stopEvent.StopId && multiplayerStops.ContainsKey(stopEvent.CasterClientId))
-                return;
+            bool isLocalOrigin = KrokMpBridge.IsLocalOrigin(stopEvent.OriginInstanceId) || stopEvent.CasterClientId == KrokMpBridge.LocalClientId;
+            uint stopKey = isLocalOrigin ? LocalStopKey : GetRemoteStopKey(stopEvent);
 
-            lastStopIdsByCaster[stopEvent.CasterClientId] = stopEvent.StopId;
-            // Remote turret shots can be visible on multiple clients. Suppress the same turret
-            // locally for a short grace window so one shot does not become several time stops.
-            if (stopEvent.Hazard == HazardKind.Turret && stopEvent.CasterClientId != KrokMpBridge.LocalClientId)
-                SuppressRemoteTurretTrigger(stopEvent.Origin, stopEvent.Duration);
+            if (lastStopIdsByKey.TryGetValue(stopKey, out uint lastStopId) && lastStopId == stopEvent.StopId)
+                return true;
+
+            lastStopIdsByKey[stopKey] = stopEvent.StopId;
+            // 远端陷阱事件可能在多个客户端视角都可见。
+            // 对同一位置的同类危险做短暂抑制，避免一发炮台子弹被多个客户端重复触发时停。
+            if (stopEvent.Hazard != HazardKind.Manual && !isLocalOrigin)
+                SuppressRemoteTrigger(stopEvent.Hazard, stopEvent.Origin, stopEvent.Duration);
 
             float endTime = Time.realtimeSinceStartup + stopEvent.Duration;
-            multiplayerStops[stopEvent.CasterClientId] = new ActiveStop(stopEvent.CasterClientId, stopEvent.StopId, endTime, stopEvent.Duration, stopEvent.Origin);
-            StartCasterPose(stopEvent);
+            multiplayerStops[stopKey] = new ActiveStop(stopEvent.CasterClientId, stopEvent.StopId, endTime, stopEvent.Duration, stopEvent.Origin, isLocalOrigin);
+            StartCasterPose(stopEvent, isLocalOrigin);
 
-            if (stopEvent.CasterClientId == KrokMpBridge.LocalClientId)
+            if (isLocalOrigin)
             {
                 ModSettings.SyncProgressionLockedSettings();
                 cooldownTotal = ModSettings.Cooldown;
-                cooldownRemaining = cooldownTotal;
+                cooldownRemaining = 0f;
+                cooldownPendingUntilStopEnds = cooldownTotal > 0f;
             }
 
             freezeDirty = true;
@@ -187,6 +300,8 @@ namespace TemporalPanicButton.Runtime
                 routine = StartCoroutine(MultiplayerTimeStopRoutine(stopEvent.Origin));
             else
                 RebuildMultiplayerDisplay(stopEvent.Origin);
+
+            return true;
         }
 
         private IEnumerator TimeStopRoutine(Vector2 origin)
@@ -196,13 +311,13 @@ namespace TemporalPanicButton.Runtime
             remainingSeconds = ModSettings.Duration;
             activeTotalSeconds = remainingSeconds;
             cooldownTotal = ModSettings.Cooldown;
-            cooldownRemaining = cooldownTotal;
+            cooldownRemaining = 0f;
+            cooldownPendingUntilStopEnds = cooldownTotal > 0f;
             BeginTimeStop(origin);
 
             while (remainingSeconds > 0f)
             {
-                // Restore every frame so bleeding/pain/unconsciousness cannot worsen, while
-                // beneficial medical changes made by the player are still preserved.
+                // 每帧恢复医疗快照：流血、疼痛、意识下降不能恶化，但玩家主动治疗得到的改善会保留。
                 playerVitalsSnapshot?.Restore();
                 remainingSeconds -= Time.unscaledDeltaTime;
                 yield return null;
@@ -221,8 +336,11 @@ namespace TemporalPanicButton.Runtime
             {
                 UpdateMultiplayerDisplay();
                 RefreshMultiplayerFreezeState();
+                UpdateLocalEmpowermentEffects(GetLocalStopOrigin(), false);
+                MaintainMultiplayerVitals();
+                worldFreeze?.Maintain();
                 if (IsLocalPlayerAllowedDuringStop())
-                    playerVitalsSnapshot?.Restore();
+                    ProtectBodyVitalsDuringStopInternal(playerBody);
 
                 yield return null;
             }
@@ -236,8 +354,7 @@ namespace TemporalPanicButton.Runtime
         {
             if (!HasPlayableLocalBody())
             {
-                // Returning to the main menu or losing the playable body must clear visual
-                // effects, cooldown text, frozen objects, and queued actions immediately.
+                // 回到主菜单或丢失可操作身体时，必须立刻清掉特效、HUD、冷却、冻结对象和排队动作。
                 ClearRunStateIfNeeded();
                 TimeStopEffect.ClearImmediate();
                 return;
@@ -247,8 +364,8 @@ namespace TemporalPanicButton.Runtime
             KrokMpBridge.Warmup();
             HandleManualTriggerInput();
 
-            if (cooldownRemaining > 0f && routine == null)
-                cooldownRemaining -= Time.unscaledDeltaTime;
+            if (cooldownRemaining > 0f && (routine == null || (isMultiplayerStop && !HasLocalMultiplayerStop())))
+                cooldownRemaining = Mathf.Max(0f, cooldownRemaining - Time.unscaledDeltaTime);
         }
 
         private void HandleManualTriggerInput()
@@ -272,12 +389,33 @@ namespace TemporalPanicButton.Runtime
             if (PauseHandler.main != null && PauseHandler.paused)
                 return true;
 
+            if (IsConsoleOpen())
+                return true;
+
             PlayerCamera camera = PlayerCamera.main;
             if (camera == null)
                 return false;
 
             return IsGameObjectActive(camera.containerMenu) ||
                    IsGameObjectActive(camera.tradeMenu);
+        }
+
+        private static bool IsConsoleOpen()
+        {
+            try
+            {
+                FieldInfo instanceField = typeof(ConsoleScript).GetField("instance", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                object console = instanceField == null ? null : instanceField.GetValue(null);
+                if (console == null)
+                    return false;
+
+                FieldInfo activeField = typeof(ConsoleScript).GetField("active", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                return activeField != null && activeField.GetValue(console) is bool active && active;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static bool IsGameObjectActive(GameObject obj)
@@ -289,11 +427,15 @@ namespace TemporalPanicButton.Runtime
         {
             if (routine != null)
             {
-                // The mod does not use global timeScale as its main freeze mechanic; keep it
-                // normalized so UI, player animation, and medical minigames can keep running.
+                // 本模组不把全局 timeScale 当作主要冻结手段。
+                // 保持它为 1，才能让 UI、玩家动画和医疗小游戏继续运行。
                 Time.timeScale = 1f;
                 if (!isMultiplayerStop || IsLocalPlayerAllowedDuringStop())
-                    playerVitalsSnapshot?.Restore();
+                    ProtectBodyVitalsDuringStopInternal(playerBody);
+
+                worldFreeze?.Maintain();
+                if (isMultiplayerStop)
+                    MaintainMultiplayerVitals();
             }
         }
 
@@ -307,13 +449,12 @@ namespace TemporalPanicButton.Runtime
             if (worldFreeze == null)
                 worldFreeze = new WorldFreezeService(IsPlayerRigidbody, IsAllowedPlayerBehaviour);
 
-            // Capture the world first, then play audiovisual feedback. This avoids a one-frame
-            // window where traps can continue updating after the effect begins.
+            // 先播放开始音效再冻结世界，避免附近行为刚被冻结就吞掉第一声联机时停音效。
+            TimeStopAudio.PlayStart();
             FreezeWorld();
             TimeStopHazardAudio.PauseSoundCannonAudio();
 
             Time.timeScale = 1f;
-            TimeStopAudio.PlayStart();
             UpdateLocalEmpowermentEffects(origin, false);
             TimeStopEffect.Begin(origin, ModSettings.EffectIntensity);
         }
@@ -336,15 +477,18 @@ namespace TemporalPanicButton.Runtime
 
             if (replayShots)
             {
-                // Deferred physical actions resolve after the frozen world has been restored.
+                // 先恢复世界，再释放延迟投掷物和延迟射击，避免它们仍被冻结状态拦住。
                 pendingActions.ReleaseQueuedThrows();
                 pendingActions.ReplayQueuedShots();
             }
+
+            StartPendingCooldown();
 
             pendingActions.Clear();
             playerBody = null;
             playerRb = null;
             playerVitalsSnapshot = null;
+            protectedBodyVitalsSnapshots.Clear();
             remainingSeconds = 0f;
             activeTotalSeconds = 0f;
             isMultiplayerStop = false;
@@ -383,13 +527,15 @@ namespace TemporalPanicButton.Runtime
 
             pendingActions.Clear();
             multiplayerStops.Clear();
-            lastStopIdsByCaster.Clear();
-            RemoteTurretSuppressions.Clear();
+            protectedBodyVitalsSnapshots.Clear();
+            lastStopIdsByKey.Clear();
+            RemoteTriggerSuppressions.Clear();
             playerBody = null;
             playerRb = null;
             playerVitalsSnapshot = null;
             cooldownRemaining = 0f;
             cooldownTotal = 0f;
+            cooldownPendingUntilStopEnds = false;
             remainingSeconds = 0f;
             activeTotalSeconds = 0f;
             isMultiplayerStop = false;
@@ -397,46 +543,49 @@ namespace TemporalPanicButton.Runtime
             localEmpoweredEffectsStarted = false;
         }
 
-        private static void SuppressRemoteTurretTrigger(Vector2 origin, float duration)
+        private static void SuppressRemoteTrigger(HazardKind hazard, Vector2 origin, float duration)
         {
-            PruneRemoteTurretSuppressions();
-            float endTime = Time.realtimeSinceStartup + Mathf.Max(0.5f, duration) + RemoteTurretReloadGraceSeconds;
+            PruneRemoteTriggerSuppressions();
+            float grace = hazard == HazardKind.Turret ? RemoteTurretReloadGraceSeconds : RemoteMineGraceSeconds;
+            float endTime = Time.realtimeSinceStartup + Mathf.Max(0.5f, duration) + grace;
 
-            for (int i = 0; i < RemoteTurretSuppressions.Count; i++)
+            for (int i = 0; i < RemoteTriggerSuppressions.Count; i++)
             {
-                if ((RemoteTurretSuppressions[i].Origin - origin).sqrMagnitude > RemoteTurretSuppressionRadius * RemoteTurretSuppressionRadius)
+                if (RemoteTriggerSuppressions[i].Hazard != hazard ||
+                    (RemoteTriggerSuppressions[i].Origin - origin).sqrMagnitude > RemoteTriggerSuppressionRadius * RemoteTriggerSuppressionRadius)
                     continue;
 
-                RemoteTurretSuppressions[i] = new RemoteTurretSuppression(origin, Mathf.Max(RemoteTurretSuppressions[i].EndTime, endTime));
+                RemoteTriggerSuppressions[i] = new RemoteTriggerSuppression(hazard, origin, Mathf.Max(RemoteTriggerSuppressions[i].EndTime, endTime));
                 return;
             }
 
-            RemoteTurretSuppressions.Add(new RemoteTurretSuppression(origin, endTime));
+            RemoteTriggerSuppressions.Add(new RemoteTriggerSuppression(hazard, origin, endTime));
         }
 
-        private static bool IsRemoteTurretTriggerSuppressed(Vector2 origin)
+        private static bool IsRemoteTriggerSuppressed(HazardKind hazard, Vector2 origin)
         {
-            PruneRemoteTurretSuppressions();
-            float radiusSqr = RemoteTurretSuppressionRadius * RemoteTurretSuppressionRadius;
-            for (int i = 0; i < RemoteTurretSuppressions.Count; i++)
+            PruneRemoteTriggerSuppressions();
+            float radiusSqr = RemoteTriggerSuppressionRadius * RemoteTriggerSuppressionRadius;
+            for (int i = 0; i < RemoteTriggerSuppressions.Count; i++)
             {
-                if ((RemoteTurretSuppressions[i].Origin - origin).sqrMagnitude <= radiusSqr)
+                if (RemoteTriggerSuppressions[i].Hazard == hazard &&
+                    (RemoteTriggerSuppressions[i].Origin - origin).sqrMagnitude <= radiusSqr)
                     return true;
             }
 
             return false;
         }
 
-        private static void PruneRemoteTurretSuppressions()
+        private static void PruneRemoteTriggerSuppressions()
         {
-            if (RemoteTurretSuppressions.Count == 0)
+            if (RemoteTriggerSuppressions.Count == 0)
                 return;
 
             float now = Time.realtimeSinceStartup;
-            for (int i = RemoteTurretSuppressions.Count - 1; i >= 0; i--)
+            for (int i = RemoteTriggerSuppressions.Count - 1; i >= 0; i--)
             {
-                if (RemoteTurretSuppressions[i].EndTime <= now)
-                    RemoteTurretSuppressions.RemoveAt(i);
+                if (RemoteTriggerSuppressions[i].EndTime <= now)
+                    RemoteTriggerSuppressions.RemoveAt(i);
             }
         }
 
@@ -491,7 +640,12 @@ namespace TemporalPanicButton.Runtime
             if (!isMultiplayerStop)
                 return body == playerBody;
 
-            // In multiplayer, every active caster is allowed to move. Everyone else freezes.
+            // 本机身体不能依赖 KrokMP 的 clientId 反查。
+            // 该映射如果滞后或误指远端发动者，会让没有权限的本机玩家错误保持可动。
+            if (body == playerBody)
+                return HasLocalMultiplayerStop();
+
+            // 远端发动者在本客户端保持动画，其他没有时停窗口的身体冻结。
             uint clientId = KrokPlayerResolver.GetClientIdForBody(body);
             if (clientId == uint.MaxValue)
                 return false;
@@ -504,13 +658,34 @@ namespace TemporalPanicButton.Runtime
             if (!isMultiplayerStop)
                 return true;
 
-            return HasActiveStopForClient(KrokMpBridge.LocalClientId);
+            return HasLocalMultiplayerStop();
         }
 
         private bool HasActiveStopForClient(uint clientId)
         {
             PruneExpiredMultiplayerStops();
-            return multiplayerStops.ContainsKey(clientId);
+            foreach (KeyValuePair<uint, ActiveStop> pair in multiplayerStops)
+            {
+                if (!pair.Value.IsLocal && pair.Value.CasterClientId == clientId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static uint GetRemoteStopKey(MultiplayerTimeStopEvent stopEvent)
+        {
+            // uint.MaxValue 被保留给本机自己的时停；即使 KrokMP 报出这个值，远端 key 也要避开。
+            if (stopEvent.CasterClientId != uint.MaxValue)
+                return stopEvent.CasterClientId;
+
+            return uint.MaxValue - 1;
+        }
+
+        private bool HasLocalMultiplayerStop()
+        {
+            PruneExpiredMultiplayerStops();
+            return multiplayerStops.TryGetValue(LocalStopKey, out ActiveStop stop) && stop.IsLocal;
         }
 
         private bool HasActiveMultiplayerStops()
@@ -541,10 +716,74 @@ namespace TemporalPanicButton.Runtime
                 return;
 
             for (int i = 0; i < expired.Count; i++)
-                multiplayerStops.Remove(expired[i]);
+            {
+                if (expired[i] == LocalStopKey)
+                    StartPendingCooldown();
 
-            // Allowed bodies changed, so rebuild frozen rigidbodies/behaviours on the next loop.
+                multiplayerStops.Remove(expired[i]);
+            }
+
+            // 可行动身体集合变了，下一轮要重新建立冻结快照。
             freezeDirty = true;
+        }
+
+        private void MaintainMultiplayerVitals()
+        {
+            if (!isMultiplayerStop)
+                return;
+
+            foreach (KeyValuePair<uint, ActiveStop> pair in multiplayerStops)
+            {
+                Body body = pair.Value.IsLocal ? (playerBody ?? PlayerCamera.main?.body) : KrokPlayerResolver.GetBodyForClientId(pair.Value.CasterClientId);
+                ProtectBodyVitalsDuringStopInternal(body);
+            }
+        }
+
+        private bool ProtectBodyVitalsDuringStopInternal(Body body)
+        {
+            if (body == null)
+                return false;
+
+            if (!ShouldProtectBodyVitalsDuringStop(body))
+                return false;
+
+            int bodyKey = body.GetInstanceID();
+            if (!protectedBodyVitalsSnapshots.TryGetValue(bodyKey, out PlayerVitalsSnapshot snapshot) || snapshot == null)
+            {
+                snapshot = PlayerVitalsSnapshot.Capture(body);
+                if (snapshot == null)
+                    return false;
+
+                protectedBodyVitalsSnapshots[bodyKey] = snapshot;
+            }
+
+            snapshot.Restore();
+            return true;
+        }
+
+        private bool ShouldProtectBodyVitalsDuringStop(Body body)
+        {
+            if (body == null)
+                return false;
+
+            if (!isMultiplayerStop)
+                return body == playerBody;
+
+            Body localBody = playerBody ?? PlayerCamera.main?.body;
+            if (body == localBody)
+                return true;
+
+            uint clientId = KrokPlayerResolver.GetClientIdForBody(body);
+            return clientId != uint.MaxValue;
+        }
+
+        private void StartPendingCooldown()
+        {
+            if (!cooldownPendingUntilStopEnds)
+                return;
+
+            cooldownPendingUntilStopEnds = false;
+            cooldownRemaining = Mathf.Max(cooldownRemaining, cooldownTotal);
         }
 
         private void UpdateMultiplayerDisplay()
@@ -586,10 +825,9 @@ namespace TemporalPanicButton.Runtime
 
             PruneExpiredMultiplayerStops();
             float now = Time.realtimeSinceStartup;
-            uint localClientId = KrokMpBridge.LocalClientId;
-            if (multiplayerStops.TryGetValue(localClientId, out ActiveStop localStop))
+            if (multiplayerStops.TryGetValue(LocalStopKey, out ActiveStop localStop) && localStop.IsLocal)
             {
-                // The HUD prioritizes the local player's own stop over someone else's stop.
+                // HUD 优先显示本机自己的时停；只有本机没有时停窗口时才显示别人的时停。
                 isLocalStop = true;
                 remaining = Mathf.Max(0f, localStop.EndTime - now);
                 total = Mathf.Max(0.1f, localStop.Duration);
@@ -629,11 +867,9 @@ namespace TemporalPanicButton.Runtime
                 return;
 
             freezeDirty = false;
-            // Re-freeze from a clean snapshot so a player who gains or loses empowerment gets
-            // their limbs, Body behaviour, and nearby objects moved to the correct side.
+            // 从干净状态重新冻结，确保刚获得或失去权限的玩家、limb、Body 行为和附近对象都落到正确状态。
             RestoreWorld();
             FreezeWorld();
-            UpdateLocalEmpowermentEffects(GetLocalStopOrigin(), true);
         }
 
         private void UpdateLocalEmpowermentEffects(Vector2 origin, bool playAudioOnStart)
@@ -665,9 +901,9 @@ namespace TemporalPanicButton.Runtime
             playerVitalsSnapshot = null;
         }
 
-        private void StartCasterPose(MultiplayerTimeStopEvent stopEvent)
+        private void StartCasterPose(MultiplayerTimeStopEvent stopEvent, bool isLocalOrigin)
         {
-            Body casterBody = KrokPlayerResolver.GetBodyForClientId(stopEvent.CasterClientId);
+            Body casterBody = isLocalOrigin ? (playerBody ?? PlayerCamera.main?.body) : KrokPlayerResolver.GetBodyForClientId(stopEvent.CasterClientId);
             if (casterBody == null)
                 return;
 
@@ -676,7 +912,7 @@ namespace TemporalPanicButton.Runtime
 
         private Vector2 GetLocalStopOrigin()
         {
-            if (isMultiplayerStop && multiplayerStops.TryGetValue(KrokMpBridge.LocalClientId, out ActiveStop stop))
+            if (isMultiplayerStop && multiplayerStops.TryGetValue(LocalStopKey, out ActiveStop stop) && stop.IsLocal)
                 return stop.Origin;
 
             return GetManualTriggerOrigin();
@@ -701,16 +937,20 @@ namespace TemporalPanicButton.Runtime
             if (camera == null || camera.body == null)
                 return false;
 
-            return camera.body.gameObject != null && camera.body.isActiveAndEnabled;
+            // 玩家被别人时停冻结时，Body 组件可能被故意禁用。
+            // 不能把这种情况误判成“回到主菜单”，否则控制器会立刻清掉正在进行的时停。
+            return camera.body.gameObject != null && camera.body.gameObject.activeInHierarchy;
         }
 
-        private readonly struct RemoteTurretSuppression
+        private readonly struct RemoteTriggerSuppression
         {
+            public readonly HazardKind Hazard;
             public readonly Vector2 Origin;
             public readonly float EndTime;
 
-            public RemoteTurretSuppression(Vector2 origin, float endTime)
+            public RemoteTriggerSuppression(HazardKind hazard, Vector2 origin, float endTime)
             {
+                Hazard = hazard;
                 Origin = origin;
                 EndTime = endTime;
             }
@@ -723,20 +963,23 @@ namespace TemporalPanicButton.Runtime
             public readonly float EndTime;
             public readonly float Duration;
             public readonly Vector2 Origin;
+            public readonly bool IsLocal;
 
-            public ActiveStop(uint casterClientId, uint stopId, float endTime, float duration, Vector2 origin)
+            public ActiveStop(uint casterClientId, uint stopId, float endTime, float duration, Vector2 origin, bool isLocal)
             {
                 CasterClientId = casterClientId;
                 StopId = stopId;
                 EndTime = endTime;
                 Duration = duration;
                 Origin = origin;
+                IsLocal = isLocal;
             }
         }
     }
 
     /// <summary>
-    /// Source category for a time-stop trigger. Used by settings, multiplayer payloads, and trap suppression.
+    /// 时停触发来源类型。
+    /// 设置开关、KrokMP 消息和远端陷阱抑制都会用这个枚举保持同一套语义。
     /// </summary>
     internal enum HazardKind
     {

@@ -4,8 +4,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Tracks and pauses Sound Cannon audio while its behaviour update is frozen.
-    /// Without this, a charge sound can finish during time stop and then be missing after resume.
+    /// 追踪并暂停音波炮相关音源。
+    /// 音波炮行为被冻结后，蓄力音也必须一起暂停，否则恢复时会出现音效已经播完但攻击刚继续的错位。
     /// </summary>
     internal static class TimeStopHazardAudio
     {
@@ -99,8 +99,7 @@ namespace TemporalPanicButton.Runtime
             if (SoundCannonClips.Contains(clipName))
                 return true;
 
-            // "tinnitus" is shared by other hazards, so only treat it as Sound Cannon audio
-            // when the source is spatially close to an actual SoundCannon.
+            // tinnitus 也会被其他伤害来源使用，只有音源离 SoundCannon 足够近时才归为音波炮音效。
             return SharedSoundCannonClips.Contains(clipName) && IsNearSoundCannon(source.transform.position);
         }
 

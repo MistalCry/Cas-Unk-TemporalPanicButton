@@ -1,5 +1,4 @@
 # Temporal Panic Button
-<img width="820" height="460" alt="Adobe Express - 2026-06-11 09-12-59 - Trim" src="https://github.com/user-attachments/assets/3d7d9764-da48-41a8-82b2-7f5d09875e0a" />
 
 **中文/ENGLISH**
 
@@ -55,29 +54,29 @@ timestop_end.ogg
 
 设置位置：`Settings -> Game`
 
-| 设置                         | 默认值 | 说明                                                       |
-| ---------------------------- | ------ | ---------------------------------------------------------- |
-| `Temporal Panic Button`      | 开启   | 总开关。关闭后不再触发时停。                               |
-| `Intelligence Growth Mode`   | 开启   | 智力成长模式。开启后时停时间和冷却由智力决定。             |
-| `Time Stop Duration`         | 5 秒   | 手动模式下的时停时长。智力成长模式开启时此项只显示锁定值。 |
-| `Time Stop Cooldown`         | 15 秒  | 手动模式下的冷却时间。智力成长模式开启时此项只显示锁定值。 |
-| `Trigger On Mines`           | 开启   | 踩到地雷时触发时停。                                       |
-| `Trigger On Turrets`         | 开启   | 触发炮台 / 枪雷时触发时停。                                |
-| `Manual Time Stop`           | 开启   | 允许按键手动触发时停。                                     |
-| `Manual Time Stop Key`       | `V`    | 手动触发时停的按键。                                       |
-| `Steady Medical Hands`       | 开启   | 时停中使用医疗物品时，忽略疼痛和意识降低造成的速度惩罚。   |
-| `Time Stop Effect Intensity` | `1`    | 时停视觉特效强度，范围 `0 - 2`。                           |
-| `Time Stop Sound Volume`     | `0.9`  | 时停音效音量，范围 `0 - 1`。                               |
+| 设置 | 默认值 | 说明 |
+| --- | --- | --- |
+| `Temporal Panic Button` | 开启 | 总开关。关闭后不再触发时停。 |
+| `Intelligence Growth Mode` | 开启 | 智力成长模式。开启后时停时间和冷却由智力决定。 |
+| `Time Stop Duration` | 5 秒 | 手动模式下的时停时长。智力成长模式开启时此项只显示锁定值。 |
+| `Time Stop Cooldown` | 15 秒 | 手动模式下的冷却时间。智力成长模式开启时此项只显示锁定值。 |
+| `Trigger On Mines` | 开启 | 踩到地雷时触发时停。 |
+| `Trigger On Turrets` | 开启 | 触发炮台 / 枪雷时触发时停。 |
+| `Manual Time Stop` | 开启 | 允许按键手动触发时停。 |
+| `Manual Time Stop Key` | `V` | 手动触发时停的按键。 |
+| `Steady Medical Hands` | 开启 | 时停中使用医疗物品时，忽略疼痛和意识降低造成的速度惩罚。 |
+| `Time Stop Effect Intensity` | `1` | 时停视觉特效强度，范围 `0 - 2`。 |
+| `Time Stop Sound Volume` | `0.9` | 时停音效音量，范围 `0 - 1`。 |
 
 ## 智力成长模式
 
 默认开启。开启后，玩家不能直接通过设置菜单决定时停时长和冷却，而是通过智力等级成长。
 
-| 智力等级 | 效果                                    |
-| -------- | --------------------------------------- |
-| 低于 7   | 尚未习得时停，不能主动发动。            |
-| 7        | 解锁时停，时长约 4 秒，冷却约 240 秒。  |
-| 20       | 满级时停，时长约 20 秒，冷却约 120 秒。 |
+| 智力等级 | 效果 |
+| --- | --- |
+| 低于 7 | 尚未习得时停，不能主动发动。 |
+| 7 | 解锁时停，时长约 4 秒，冷却约 240 秒。 |
+| 20 | 满级时停，时长约 20 秒，冷却约 120 秒。 |
 
 7 到 20 级之间会缓慢成长，成长曲线不是完全线性，后期提升会更明显一些。
 

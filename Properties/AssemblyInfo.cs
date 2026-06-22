@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 
+// .NET Framework 版本的程序集元数据。BepInEx 加载插件时会读取这些基础信息。
 [assembly: AssemblyTitle("TemporalPanicButton")]
 [assembly: AssemblyDescription("Emergency time stop and flight when lethal traps trigger.")]
 [assembly: AssemblyConfiguration("")]

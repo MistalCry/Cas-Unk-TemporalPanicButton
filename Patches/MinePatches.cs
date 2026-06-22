@@ -5,7 +5,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Patches
 {
     /// <summary>
-    /// Mine support: trigger time stop on player contact and freeze the mine countdown during stop.
+    /// 地雷相关补丁。
+    /// 负责在玩家踩雷时触发时停，并在时停期间阻止地雷继续倒计时或爆炸。
     /// </summary>
     [HarmonyPatch(typeof(MineScript), "OnCollisionEnter2D")]
     internal static class MineScriptOnCollisionEnter2DPatch
@@ -19,6 +20,10 @@ namespace TemporalPanicButton.Patches
             if (hitBody == null || hitBody.isKinematic)
                 return;
 
+            // 联机时，只有本机真正控制的身体才有资格把这次踩雷变成本机时停。
+            if (!KrokPlayerResolver.IsLocalRigidbody(hitBody))
+                return;
+
             Body player = PlayerCamera.main == null ? null : PlayerCamera.main.body;
             if (player == null)
                 return;
@@ -28,8 +33,7 @@ namespace TemporalPanicButton.Patches
             if (Vector2.Distance(minePosition, playerPosition) >= 50f)
                 return;
 
-            // Prefix is enough here: the mine's own collision logic can still arm, but its
-            // Update countdown is blocked while time is stopped.
+            // 这里用 Prefix 就够了：地雷本身仍可保持上膛状态，但时停期间不再走倒计时。
             TimeStopController.TryTrigger(HazardKind.Mine, minePosition);
         }
     }
@@ -39,7 +43,7 @@ namespace TemporalPanicButton.Patches
     {
         private static bool Prefix()
         {
-            // Returning false prevents armed mines from counting down or exploding during time stop.
+            // 返回 false 可以直接拦住原版 Update，让已上膛地雷在时停期间不继续推进。
             return !TimeStopController.IsActive;
         }
     }

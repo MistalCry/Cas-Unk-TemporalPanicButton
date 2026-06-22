@@ -5,8 +5,8 @@ using UnityEngine.UI;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Screen-space visual effects for entering/exiting time stop.
-    /// Built entirely at runtime so the plugin does not need bundled UI assets.
+    /// 时停开始、脉冲和结束时的屏幕特效。
+    /// 所有 UI 图像都在运行时生成，避免插件额外携带贴图资源。
     /// </summary>
     internal sealed class TimeStopEffect : MonoBehaviour
     {
@@ -258,7 +258,7 @@ namespace TemporalPanicButton.Runtime
 
         private static Sprite CreateRingSprite()
         {
-            // Procedural ring avoids shipping texture assets and scales cleanly with UI resolution.
+            // 程序生成圆环，既不需要外置贴图，也能跟随 UI 分辨率干净缩放。
             const int size = 128;
             Texture2D texture = new Texture2D(size, size, TextureFormat.ARGB32, false);
             Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);

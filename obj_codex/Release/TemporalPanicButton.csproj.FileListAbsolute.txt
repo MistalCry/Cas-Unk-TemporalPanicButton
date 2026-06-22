@@ -1,0 +1,6 @@
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\bin\codex-release\TemporalPanicButton.dll
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj_codex\Release\TemporalPanicButton.csproj.AssemblyReference.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj_codex\Release\TemporalPanicButton.csproj.CoreCompileInputs.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj_codex\Release\TemporalPanicButton.dll
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\obj_codex\Release\TemporalPanicButton.pdb
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\bin\codex-release\TemporalPanicButton.pdb

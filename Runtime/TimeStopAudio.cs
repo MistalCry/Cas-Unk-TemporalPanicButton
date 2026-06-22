@@ -6,8 +6,8 @@ using UnityEngine.Networking;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Loads optional user-provided start/end audio clips from TemporalPanicButtonAssets.
-    /// Missing files are allowed so public releases can avoid bundling copyrighted sounds.
+    /// 加载用户放在 TemporalPanicButtonAssets 里的开始/结束音效。
+    /// 音效文件完全可选，缺失时不报错，方便发布包不内置外部声音资源。
     /// </summary>
     internal static class TimeStopAudio
     {
@@ -70,8 +70,7 @@ namespace TemporalPanicButton.Runtime
 
         private static IEnumerator LoadClip(string path, System.Action<AudioClip> assign)
         {
-            // UnityWebRequestMultimedia is the safest path for loading wav/ogg files from disk
-            // across Unity versions available to BepInEx plugins.
+            // UnityWebRequestMultimedia 在 BepInEx 可用的 Unity 版本中读本地 wav/ogg 最稳。
             using (UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip("file:///" + path.Replace("\\", "/"), GetAudioType(path)))
             {
                 yield return request.SendWebRequest();

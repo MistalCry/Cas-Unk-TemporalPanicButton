@@ -4,7 +4,7 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>16c6b2d5-3e93-4d6e-8e5f-86a1d905fbb5</ProjectGuid>
+    <ProjectGuid>{16C6B2D5-3E93-4D6E-8E5F-86A1D905FBB5}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>TemporalPanicButton</RootNamespace>
@@ -32,21 +32,21 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="0Harmony20">
-      <HintPath>$(BepInExCoreDir)\0Harmony20.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\BepInEx\core\0Harmony20.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Assembly-CSharp">
-      <HintPath>$(GameManagedDir)\Assembly-CSharp.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\CasualtiesUnknown_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>$(BepInExCoreDir)\BepInEx.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\BepInEx\core\BepInEx.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="UnityEngine">
-      <HintPath>$(GameManagedDir)\UnityEngine.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\CasualtiesUnknown_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
@@ -58,15 +58,15 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>$(GameManagedDir)\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\CasualtiesUnknown_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>$(GameManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\CasualtiesUnknown_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>$(GameManagedDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>..\..\..\..\SteamLibrary\steamapps\common\Casualties Unknown Demo\CasualtiesUnknown_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.Physics2DModule">
@@ -98,6 +98,7 @@
     <Compile Include="TemporalPanicButtonPlugin.cs" />
     <Compile Include="ModSettings.cs" />
     <Compile Include="Patches\DynamitePatches.cs" />
+    <Compile Include="Patches\BodyFreezePatches.cs" />
     <Compile Include="Patches\HazardPatches.cs" />
     <Compile Include="Patches\KrokMpCompatibilityPatches.cs" />
     <Compile Include="Patches\LocalePatch.cs" />
@@ -110,6 +111,7 @@
     <Compile Include="Patches\TrapFreezePatches.cs" />
     <Compile Include="Patches\TurretPatches.cs" />
     <Compile Include="Runtime\KrokMpBridge.cs" />
+    <Compile Include="Runtime\KrokMpCallGuard.cs" />
     <Compile Include="Runtime\KrokMpPayload.cs" />
     <Compile Include="Runtime\KrokPlayerResolver.cs" />
     <Compile Include="Runtime\DynamiteFuseCutFeature.cs" />

@@ -4,8 +4,8 @@ using UnityEngine;
 namespace TemporalPanicButton
 {
     /// <summary>
-    /// Integrates with the game's native Settings list rather than BepInEx config files.
-    /// This keeps the options visible in Settings -> Game and avoids forcing settings to load at plugin startup.
+    /// 直接接入游戏自己的 Settings 列表，而不是使用 BepInEx 配置文件。
+    /// 这样设置项会出现在 Settings -> Game 中，也能避免插件启动阶段过早初始化游戏设置系统。
     /// </summary>
     internal static class ModSettings
     {
@@ -22,7 +22,7 @@ namespace TemporalPanicButton
         public const string VolumeSettingName = "temporalpanicbuttonvolume";
 
         private const float DefaultDuration = 5f;
-        // Early test builds used 7 seconds. Convert that value once so old configs do not keep a stale default.
+        // 旧测试版曾把默认时长写成 7 秒，读到这个旧值时会自动迁移到当前默认值。
         private const float LegacyDefaultDuration = 7f;
         private const float MinDuration = 1f;
         private const float MaxDuration = 20f;
@@ -35,7 +35,7 @@ namespace TemporalPanicButton
         private const float MaxIntelligenceDuration = 20f;
         private const float UnlockCooldown = 240f;
         private const float MaxIntelligenceCooldown = 120f;
-        // The curve makes early INT gains modest and reserves the strongest time-stop scaling for late game.
+        // 智力成长不是线性增长：前期变化较小，后期提升更明显。
         private const float ProgressionCurvePower = 1.3f;
         private const float DefaultEffectIntensity = 1f;
         private const float MinEffectIntensity = 0f;
@@ -73,7 +73,8 @@ namespace TemporalPanicButton
             };
 
         public static bool Enabled => GetBool(EnabledSettingName, true);
-        public static bool IntelligenceProgression => GetBool(IntelligenceProgressionSettingName, true);
+        public static bool LocalIntelligenceProgression => GetBool(IntelligenceProgressionSettingName, true);
+        public static bool IntelligenceProgression => GetEffectiveIntelligenceProgression();
         public static float Duration => GetDuration();
         public static float Cooldown => IntelligenceProgression ? GetProgressionStats().Cooldown : GetFloat(CooldownSettingName, DefaultCooldown, MinCooldown, MaxCooldown);
         public static int IntelligenceLevel => GetIntelligenceLevel();
@@ -91,8 +92,8 @@ namespace TemporalPanicButton
             if (settings == null)
                 return;
 
-            // Settings.DefaultSettings can be patched by several mods. Add only missing entries so this mod
-            // does not overwrite or prematurely rebuild another mod's setting list.
+            // Settings.DefaultSettings 可能被多个模组同时修改。
+            // 这里只补缺少的选项，避免覆盖其他模组或提前重建设置列表。
             AddBool(settings, EnabledSettingName, true);
             AddBool(settings, IntelligenceProgressionSettingName, true);
             AddFloat(settings, DurationSettingName, DefaultDuration, MinDuration, MaxDuration, FormatDurationSetting);
@@ -109,10 +110,10 @@ namespace TemporalPanicButton
         public static string ProgressionSummary()
         {
             if (!IntelligenceProgression)
-                return "Manual settings";
+                return "Manual";
 
             ProgressionStats stats = GetProgressionStats();
-            return "INT " + IntelligenceLevel + " | " + stats.Duration.ToString("0.#") + "s / " + stats.Cooldown.ToString("0") + "s CD";
+            return "INT " + IntelligenceLevel + "  " + stats.Duration.ToString("0.#") + "s / " + stats.Cooldown.ToString("0") + "s";
         }
 
         public static void SyncProgressionLockedSettings()
@@ -129,6 +130,21 @@ namespace TemporalPanicButton
         {
             SettingBool setting = Settings.Get<SettingBool>(name);
             return setting == null ? fallback : setting.value;
+        }
+
+        private static bool GetEffectiveIntelligenceProgression()
+        {
+            return GetEffectiveIntelligenceProgression(null);
+        }
+
+        private static bool GetEffectiveIntelligenceProgression(List<Setting> settings)
+        {
+            if (Runtime.KrokMpBridge.TryGetHostIntelligenceProgression(out bool hostValue))
+                return hostValue;
+
+            return settings == null
+                ? LocalIntelligenceProgression
+                : GetBoolFromList(settings, IntelligenceProgressionSettingName, true);
         }
 
         private static float GetFloat(string name, float fallback, float min, float max)
@@ -168,8 +184,7 @@ namespace TemporalPanicButton
             if (intelligence < IntelligenceUnlockLevel)
                 return new ProgressionStats(0f, UnlockCooldown);
 
-            // INT 7 unlocks the power, INT 20 reaches the cap.
-            // Values between those points are intentionally shaped instead of linear.
+            // INT 7 解锁时停，INT 20 达到成长上限；中间用曲线插值，而不是简单线性增长。
             float progress = Mathf.InverseLerp(IntelligenceUnlockLevel, IntelligenceMaxLevel, Mathf.Clamp(intelligence, IntelligenceUnlockLevel, IntelligenceMaxLevel));
             float shaped = Mathf.Pow(progress, ProgressionCurvePower);
             float duration = Mathf.Lerp(UnlockDuration, MaxIntelligenceDuration, shaped);
@@ -245,11 +260,11 @@ namespace TemporalPanicButton
 
         private static void SyncProgressionLockedSettings(List<Setting> settings)
         {
-            bool progression = settings == null ? IntelligenceProgression : GetBoolFromList(settings, IntelligenceProgressionSettingName, true);
+            bool progression = GetEffectiveIntelligenceProgression(settings);
             ProgressionStats stats = GetProgressionStats();
 
-            // The game setting UI has no true disabled slider state, so progression mode "locks" the
-            // sliders by writing the calculated value back and formatting it as LOCKED.
+            // 游戏设置 UI 没有真正的禁用滑条状态，所以成长模式下把计算值写回滑条，
+            // 再通过格式化文本显示 LOCKED，模拟“被成长系统接管”的效果。
             SyncFloatSetting(settings, DurationSettingName, progression, stats.Duration, MinDuration, MaxDuration, DefaultDuration);
             SyncFloatSetting(settings, CooldownSettingName, progression, stats.Cooldown, MinCooldown, MaxCooldown, DefaultCooldown);
         }
@@ -314,7 +329,7 @@ namespace TemporalPanicButton
         }
 
         /// <summary>
-        /// Effective ability values after applying manual settings or Intelligence progression.
+        /// 当前最终生效的时停时长与冷却；来源可能是手动设置，也可能是智力成长计算。
         /// </summary>
         public readonly struct ProgressionStats
         {

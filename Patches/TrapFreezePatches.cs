@@ -6,8 +6,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Patches
 {
     /// <summary>
-    /// Stops non-turret traps from updating or triggering while time is stopped.
-    /// These traps should not queue delayed effects; they simply wait for time to resume.
+    /// 冻结非炮台类陷阱。
+    /// 这些陷阱没有“延迟结算”的需求，时停期间直接停住，恢复后再继续原版逻辑。
     /// </summary>
     [HarmonyPatch(typeof(JumpPadScript), "OnCollisionEnter2D")]
     internal static class JumpPadScriptOnCollisionEnter2DPatch
@@ -157,8 +157,8 @@ namespace TemporalPanicButton.Patches
             if (!TimeStopController.IsActive)
                 return true;
 
-            // Sound Cannon has both tracking logic and charge audio. Freeze its Update and
-            // pause tracked audio together so it does not fire silently after resume.
+            // 音波炮既有追踪逻辑也有蓄力音效。
+            // 冻结 Update 的同时暂停音效，避免恢复后出现静音开火或音效错位。
             TimeStopHazardAudio.PauseSoundCannonAudio();
             return false;
         }
@@ -185,7 +185,7 @@ namespace TemporalPanicButton.Patches
     {
         private static void Postfix(string clip, AudioSource __result)
         {
-            // Register after Sound.Play returns because the AudioSource is created by vanilla code.
+            // AudioSource 是原版 Sound.Play 创建的，必须等返回后才能登记追踪。
             TimeStopHazardAudio.RegisterSoundCannonAudio(clip, __result);
         }
     }

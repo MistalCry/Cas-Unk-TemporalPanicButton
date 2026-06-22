@@ -4,7 +4,8 @@ using TemporalPanicButton.Runtime;
 namespace TemporalPanicButton.Patches
 {
     /// <summary>
-    /// Redirects Dynamite timing through DynamiteFuseCutFeature so explosions pause during time stop.
+    /// 把 Dynamite 的倒计时交给 DynamiteFuseCutFeature 管理。
+    /// 原版 Invoke 计时无法理解时停，所以点燃后需要取消原计时并使用模组自己的可暂停计时。
     /// </summary>
     [HarmonyPatch(typeof(CustomItemBehaviour), "Update")]
     internal static class CustomItemBehaviourUpdatePatch
@@ -14,7 +15,7 @@ namespace TemporalPanicButton.Patches
             if (!TimeStopController.IsActive)
                 return true;
 
-            // Block only Dynamite's vanilla timer update; other custom items keep their own logic.
+            // 只拦 Dynamite 的原版计时更新，其他 CustomItemBehaviour 继续正常运行。
             return !DynamiteFuseCutFeature.IsDynamite(__instance);
         }
     }
@@ -45,7 +46,7 @@ namespace TemporalPanicButton.Patches
     {
         private static bool Prefix(CustomItemBehaviour __instance)
         {
-            // When vanilla Invoke reaches DynamiteExplode during time stop, cancel and reschedule it.
+            // 如果原版 Invoke 在时停中抵达爆炸方法，取消这次爆炸并交给模组计时器重新安排。
             return !DynamiteFuseCutFeature.TryDelayDynamiteExplosion(__instance);
         }
     }

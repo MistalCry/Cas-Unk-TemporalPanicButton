@@ -1,0 +1,12 @@
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\bin\Release\net472\IlInspect.exe.config
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\bin\Release\net472\IlInspect.exe
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\bin\Release\net472\IlInspect.pdb
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\bin\Release\net472\Mono.Cecil.dll
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.csproj.AssemblyReference.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.GeneratedMSBuildEditorConfig.editorconfig
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.AssemblyInfoInputs.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.AssemblyInfo.cs
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.csproj.CoreCompileInputs.cache
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.csproj.Up2Date
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.exe
+E:\1\testmod\InventoryVisibilityFix\TemporalPanicButton\Tools\IlInspect\obj\Release\net472\IlInspect.pdb

@@ -4,13 +4,12 @@ using System.Reflection;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Protects the player's body and limb vitals while time is stopped.
-    /// Values are restored only when they get worse; improvements from medical items are kept.
+    /// 时停期间保护玩家身体和肢体的医疗数据。
+    /// 只回滚恶化值，治疗、补水、止血等正向变化会被保留下来。
     /// </summary>
     internal sealed class PlayerVitalsSnapshot
     {
-        // Body-wide vitals that should not degrade during time stop.
-        // The helper name describes which direction is considered beneficial.
+        // 这些是身体整体层面的状态。BetterHigher/BetterLower 表示哪个方向才算“变好”。
         private static readonly VitalsField[] BodyFields =
         {
             BetterHigher("bloodOxygen"),
@@ -49,7 +48,7 @@ namespace TemporalPanicButton.Runtime
             BetterHigher("<thirstBloodPressure>k__BackingField")
         };
 
-        // Limb vitals are captured separately because treatment usually targets a specific limb.
+        // 肢体数据单独记录，因为医疗操作通常只作用在某一条 limb 上。
         private static readonly VitalsField[] LimbFields =
         {
             BetterHigher("skinHealth"),
@@ -191,8 +190,7 @@ namespace TemporalPanicButton.Runtime
             private void ProtectFloat(object target, object[] protectedValues, int index, float current, float protectedValue)
             {
                 float nextProtectedValue = protectedValue;
-                // Let healing, hydration, bandaging, and other improvements advance the snapshot.
-                // Revert only harmful drift caused by bleeding, pain, shock, etc.
+                // 治疗、补水、包扎等正向变化会推进快照；流血、疼痛、休克等恶化才回滚。
                 bool improved = higherOrTrueIsBetter ? current > protectedValue : current < protectedValue;
                 bool worsened = higherOrTrueIsBetter ? current < protectedValue : current > protectedValue;
 

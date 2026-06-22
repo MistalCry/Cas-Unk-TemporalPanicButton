@@ -1,11 +1,12 @@
 using System;
 using TemporalPanicButton.Runtime;
+using UnityEngine;
 
 namespace TemporalPanicButton.Patches
 {
     /// <summary>
-    /// Shared helpers for hazard Harmony patches.
-    /// Kept small so each patch file can focus on the vanilla type it modifies.
+    /// 陷阱补丁共用工具。
+    /// 这里集中处理“当前能不能让陷阱继续跑”“炮台射线打中了谁”等判断，避免每个补丁重复写一份。
     /// </summary>
     internal static class HazardPatchUtility
     {
@@ -19,9 +20,60 @@ namespace TemporalPanicButton.Patches
             if (info == null || info.ignoreTrans == null)
                 return false;
 
-            // Player firearms and real turret shots both flow through TurretScript.Shoot.
-            // The ignore transform tells us whether the shot originated from a turret object.
+            // 玩家枪械和炮台都会进入 TurretScript.Shoot。
+            // ignoreTrans 所在父级能区分这次射击到底是不是炮台/枪雷发出的。
             return info.ignoreTrans.GetComponentInParent<TurretScript>() != null;
+        }
+
+        public static bool IsAimingAtLocalPlayer(FireInfo info)
+        {
+            return TryGetAimedBody(info, out Body body) && KrokPlayerResolver.IsLocalBody(body);
+        }
+
+        public static bool TryGetAimedPlayerClientId(FireInfo info, out uint clientId)
+        {
+            clientId = uint.MaxValue;
+            if (!TryGetAimedBody(info, out Body body))
+                return false;
+
+            clientId = KrokPlayerResolver.GetClientIdForBody(body);
+            return clientId != uint.MaxValue;
+        }
+
+        public static bool TryGetAimedBody(FireInfo info, out Body body)
+        {
+            body = null;
+            if (info == null || info.dir.sqrMagnitude <= 0.0001f)
+                return false;
+
+            RaycastHit2D hit = Physics2D.Raycast(info.pos, info.dir.normalized, Mathf.Infinity, LayerMask.GetMask("Body", "Limb"));
+            body = GetBodyFromHit(hit);
+            return body != null && KrokPlayerResolver.GetClientIdForBody(body) != uint.MaxValue;
+        }
+
+        public static Body GetBodyFromHit(RaycastHit2D hit)
+        {
+            if (!hit || hit.collider == null)
+                return null;
+
+            Body body = hit.collider.GetComponent<Body>();
+            if (body != null)
+                return body;
+
+            Limb limb = hit.collider.GetComponent<Limb>();
+            if (limb != null)
+                return limb.body;
+
+            Rigidbody2D rigidbody = hit.collider.attachedRigidbody;
+            if (rigidbody == null)
+                return null;
+
+            body = rigidbody.GetComponent<Body>();
+            if (body != null)
+                return body;
+
+            limb = rigidbody.GetComponent<Limb>();
+            return limb == null ? null : limb.body;
         }
 
         public static Exception FilterCancelledTrapException(Exception exception)
@@ -32,8 +84,8 @@ namespace TemporalPanicButton.Patches
             if (!TimeStopController.IsActive || !IsKrokMpException(exception))
                 return exception;
 
-            // KrokMP trap postfixes can run after this mod cancels vanilla trap logic.
-            // Only swallow KrokMP-side fallout while time is stopped; keep other errors visible.
+            // 本模组取消原版陷阱逻辑后，KrokMP 的 postfix 有时仍会继续执行并报错。
+            // 只在时停期间吞掉 KrokMP 侧的连带异常，其他异常仍然保留，方便发现真实问题。
             return null;
         }
 

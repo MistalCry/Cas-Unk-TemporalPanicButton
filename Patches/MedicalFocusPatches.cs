@@ -4,8 +4,8 @@ using TemporalPanicButton.Runtime;
 namespace TemporalPanicButton.Patches
 {
     /// <summary>
-    /// Temporarily normalizes medical minigame penalties while Steady Medical Hands is active.
-    /// Prefix saves the penalizing value, vanilla code runs at full speed, postfix restores it.
+    /// 在 `Steady Medical Hands` 开启时，临时抹平医疗小游戏里的惩罚值。
+    /// 做法是先保存原值，再让原版代码按“正常状态”运行，最后把现场恢复回去。
     /// </summary>
     [HarmonyPatch(typeof(MinigameBase), nameof(MinigameBase.GetMousePos))]
     internal static class MinigameBaseGetMousePosPatch
@@ -17,7 +17,7 @@ namespace TemporalPanicButton.Patches
             if (body == null)
                 return;
 
-            // Pain affects cursor/hand stability in several minigames.
+            // 疼痛会影响多个医疗小游戏里的鼠标/手部稳定性。
             __state = body.averagePain;
             body.averagePain = 0f;
         }
@@ -45,7 +45,7 @@ namespace TemporalPanicButton.Patches
             if (body == null)
                 return;
 
-            // Low consciousness slows or destabilizes hand physics; make it normal only for this call.
+            // 低意识会拖慢或扰乱手部物理，这里只在本次调用中临时修正。
             __state = body.consciousness;
             if (body.consciousness < 100f)
                 body.consciousness = 100f;
@@ -74,7 +74,7 @@ namespace TemporalPanicButton.Patches
             if (limb == null)
                 return;
 
-            // Injuries can reduce bandage speed through this limb multiplier.
+            // 受伤会通过这个倍率拖慢绷带处理速度。
             __state = limb.bandageMinigameSpeedMult;
             if (limb.bandageMinigameSpeedMult < 1f)
                 limb.bandageMinigameSpeedMult = 1f;

@@ -3,8 +3,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Short visual flourish at the start of a time stop: force the attack pose and move Observer
-    /// behind the caster. It snapshots touched fields and restores them each frame after rendering.
+    /// 时停开始时的短暂姿态演出。
+    /// 通过临时改写游戏自己的朝向/攻击姿态字段，并把 Observer 放到发动者身后，制造发动瞬间的画面效果。
     /// </summary>
     internal static class TimeStopPoseVisual
     {
@@ -78,8 +78,7 @@ namespace TemporalPanicButton.Runtime
 
             SnapshotVisuals(body);
 
-            // Reuse the game's own attack/look variables instead of posing limbs manually.
-            // This keeps animation much less fragile across character shapes.
+            // 复用游戏自己的攻击和视线变量，而不是手动摆 limb，能减少不同角色体型导致的动画问题。
             Vector2 center = GetBodyCenter(body);
             Vector2 forward = body.isRight ? Vector2.right : Vector2.left;
             Vector2 lookPos = center + forward * 4f + Vector2.up * 0.15f;
@@ -125,8 +124,7 @@ namespace TemporalPanicButton.Runtime
 
             Vector2 bodyCenter = GetBodyCenter(activeBody);
             Vector2 forward = activeBody.isRight ? Vector2.right : Vector2.left;
-            // Keep Observer far enough away to read as a stand-like silhouette instead of
-            // covering the player body.
+            // Observer 要离身体足够远，才能读成身后的影子，而不是挡住玩家本体。
             Vector2 standPosition = bodyCenter - forward * 7.2f + Vector2.up * 0.3f;
 
             Transform observerTransform = activeObserver.transform;

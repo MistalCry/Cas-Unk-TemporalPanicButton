@@ -4,8 +4,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Visualizes gunfire made during time stop as a short frozen tracer.
-    /// Actual damage is still queued and replayed by PendingTimeStopActions.
+    /// 显示时停中开枪产生的短暂冻结弹道。
+    /// 它只负责视觉表现；真正的命中和伤害仍由 PendingTimeStopActions 延后回放。
     /// </summary>
     internal sealed class TimeStopBulletPreview : MonoBehaviour
     {
@@ -140,7 +140,7 @@ namespace TemporalPanicButton.Runtime
 
             public void Step(float deltaTime)
             {
-                // The tracer advances briefly and decelerates to sell the "bullet stopped in time" effect.
+                // 让弹道先短暂前进再减速停住，形成“子弹被时停卡在空中”的感觉。
                 if (speed > 0f)
                 {
                     length = Mathf.Min(MaxLength, length + speed * deltaTime);

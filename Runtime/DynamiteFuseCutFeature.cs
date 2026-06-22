@@ -6,8 +6,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Experimental helper for Dynamite.
-    /// It pauses lit dynamite timers during time stop and offers a temporary "cut fuse" button.
+    /// Dynamite 临时功能控制器。
+    /// 负责暂停已点燃炸药的倒计时，并提供“剪短引线”按钮，让下一次使用几乎立刻爆炸。
     /// </summary>
     internal sealed class DynamiteFuseCutFeature : MonoBehaviour
     {
@@ -58,14 +58,15 @@ namespace TemporalPanicButton.Runtime
                 return;
 
             int id = item.GetInstanceID();
-            // Vanilla schedules DynamiteExplode through Invoke. Cancel it and run our own timer
-            // so the countdown can pause during time stop.
+            // 原版通过 Invoke 安排 DynamiteExplode，无法感知时停。
+            // 这里取消原版 Invoke，改用本类维护的可暂停倒计时。
             behaviour.CancelInvoke("DynamiteExplode");
             if (LitDynamites.ContainsKey(id))
                 return;
 
             float duration = CutFuseItems.Contains(id) ? CutFuseSeconds : 5f;
             LitDynamites[id] = new LitDynamite(behaviour, item, duration);
+            KrokMpBridge.TryServerSyncItem(item, true);
         }
 
         public static bool TryDelayDynamiteExplosion(CustomItemBehaviour behaviour)
@@ -119,7 +120,7 @@ namespace TemporalPanicButton.Runtime
                 if (TimeStopController.IsActive || (PauseHandler.main != null && PauseHandler.paused))
                     continue;
 
-                // Use scaled delta outside time stop so the timer still respects normal game pause.
+                // 时停外使用 scaled delta，让普通暂停菜单仍然能暂停炸药计时。
                 lit.Remaining -= Time.deltaTime;
                 if (lit.Remaining > 0f)
                 {
@@ -153,6 +154,25 @@ namespace TemporalPanicButton.Runtime
         }
 
         private void CutFuse(Item item)
+        {
+            if (!IsDynamite(item))
+                return;
+
+            MarkFuseCut(item);
+            KrokMpBridge.TryAnnounceDynamiteFuseCut(item);
+        }
+
+        public static bool ApplyNetworkFuseCut(uint syncId)
+        {
+            if (!KrokMpBridge.TryGetItemBySyncId(syncId, out Item item) || !IsDynamite(item))
+                return false;
+
+            MarkFuseCut(item);
+            KrokMpBridge.TryServerSyncItem(item, true);
+            return true;
+        }
+
+        private static void MarkFuseCut(Item item)
         {
             if (!IsDynamite(item))
                 return;

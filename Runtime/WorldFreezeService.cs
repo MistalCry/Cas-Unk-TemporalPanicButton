@@ -6,8 +6,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Freezes game-owned rigidbodies and behaviours while leaving selected player/UI systems alive.
-    /// The caller supplies predicates for bodies/behaviours that should remain active.
+    /// 冻结世界里的刚体和游戏行为，同时保留被授权玩家与必要 UI。
+    /// 哪些刚体/行为应该继续运行由调用方提供谓词决定。
     /// </summary>
     internal sealed class WorldFreezeService
     {
@@ -30,8 +30,8 @@ namespace TemporalPanicButton.Runtime
         {
             Restore();
 
-            // The game still runs with Time.timeScale = 1 so the empowered player and UI
-            // can animate. World objects are frozen explicitly instead of relying on timeScale.
+            // 时停期间仍保持 Time.timeScale = 1，让发动者、UI 和医疗小游戏正常运行。
+            // 世界对象则通过刚体和 MonoBehaviour 显式冻结。
             Rigidbody2D[] bodies = UnityEngine.Object.FindObjectsOfType<Rigidbody2D>();
             foreach (Rigidbody2D body in bodies)
             {
@@ -43,9 +43,7 @@ namespace TemporalPanicButton.Runtime
 
                 frozenBodies.Add(new FrozenBody(body));
                 frozenSet.Add(body);
-                body.velocity = Vector2.zero;
-                body.angularVelocity = 0f;
-                body.bodyType = RigidbodyType2D.Static;
+                FreezeNow(body);
             }
 
             MonoBehaviour[] behaviours = UnityEngine.Object.FindObjectsOfType<MonoBehaviour>();
@@ -72,6 +70,34 @@ namespace TemporalPanicButton.Runtime
             frozenBehaviours.Clear();
             frozenSet.Clear();
             frozenBehaviourSet.Clear();
+        }
+
+        public void Maintain()
+        {
+            for (int i = 0; i < frozenBodies.Count; i++)
+                frozenBodies[i].Maintain();
+        }
+
+        public bool MaintainIfFrozen(Rigidbody2D body)
+        {
+            if (body == null || !frozenSet.Contains(body))
+                return false;
+
+            FreezeNow(body);
+            return true;
+        }
+
+        private static void FreezeNow(Rigidbody2D body)
+        {
+            if (body == null)
+                return;
+
+            if (body.bodyType == RigidbodyType2D.Static)
+                return;
+
+            body.velocity = Vector2.zero;
+            body.angularVelocity = 0f;
+            body.bodyType = RigidbodyType2D.Static;
         }
 
         private bool ShouldFreezeBehaviour(MonoBehaviour behaviour)
@@ -115,7 +141,7 @@ namespace TemporalPanicButton.Runtime
 
         private static bool IsTreatmentUiBehaviour(MonoBehaviour behaviour)
         {
-            // Medical UI must keep running so the empowered player can treat themselves during time stop.
+            // 医疗 UI 必须继续跑，发动者才能在时停里给自己处理伤口。
             return behaviour is MinigameBase ||
                    behaviour is WoundView ||
                    behaviour is WoundViewLimb ||
@@ -160,6 +186,14 @@ namespace TemporalPanicButton.Runtime
                 body.bodyType = bodyType;
                 body.velocity = velocity;
                 body.angularVelocity = angularVelocity;
+            }
+
+            public void Maintain()
+            {
+                if (body == null)
+                    return;
+
+                FreezeNow(body);
             }
         }
 

@@ -3,8 +3,8 @@ using UnityEngine;
 namespace TemporalPanicButton.Runtime
 {
     /// <summary>
-    /// Lightweight IMGUI HUD for active time stop, cooldown, readiness, and progression status.
-    /// IMGUI is used here because it works reliably in this Unity title without scene UI setup.
+    /// 时停 HUD。
+    /// 使用 IMGUI 是为了不依赖场景 UI 预制体，在这个 Unity 游戏里能稳定显示剩余时间、冷却和联机警告。
     /// </summary>
     internal sealed class TimeStopTimerDisplay : MonoBehaviour
     {
@@ -40,9 +40,15 @@ namespace TemporalPanicButton.Runtime
             if (!TimeStopController.IsPlayableContext)
                 return;
 
+            if (KrokMpBridge.ShouldShowHostMissingWarning)
+            {
+                DrawHostMissingWarning();
+                return;
+            }
+
             if (TimeStopController.TryGetActiveDisplay(out bool isLocalStop, out float remaining, out float total))
             {
-                // In multiplayer this distinguishes "you can move" from "someone else stopped time".
+                // 联机时需要区分“我拥有时停权限”和“别人正在时停，我被冻住”。
                 DrawStatus(isLocalStop ? "YOUR TIME STOP" : "OTHER TIME STOP", remaining, total, isLocalStop ? new Color(0.35f, 0.9f, 1f, 1f) : new Color(0.65f, 0.75f, 1f, 1f));
                 return;
             }
@@ -109,23 +115,48 @@ namespace TemporalPanicButton.Runtime
         {
             EnsureStyles();
 
-            float width = Mathf.Min(Screen.width - 24f, 280f);
-            if (width < 180f)
+            float width = Mathf.Min(Screen.width - 24f, 460f);
+            if (width < 260f)
                 width = Screen.width - 12f;
 
-            Rect rect = new Rect((Screen.width - width) * 0.5f, 8f, width, 30f);
+            Rect rect = new Rect((Screen.width - width) * 0.5f, 8f, width, 44f);
             Color oldColor = GUI.color;
             GUI.color = new Color(1f, 1f, 1f, 0.9f);
             GUI.Box(rect, GUIContent.none, boxStyle);
             GUI.color = new Color(0.45f, 1f, 0.65f, 1f);
-            GUI.Label(rect, "TIME STOP READY", labelStyle);
+            GUI.Label(new Rect(rect.x, rect.y + 1f, rect.width, 24f), "TIME STOP READY", labelStyle);
+            GUI.color = new Color(1f, 1f, 1f, 0.75f);
+            GUI.Label(new Rect(rect.x + 10f, rect.y + 24f, rect.width - 20f, 16f), GetReadySubLabel(), subLabelStyle);
+            GUI.color = oldColor;
+        }
+
+        private void DrawHostMissingWarning()
+        {
+            EnsureStyles();
+
+            float width = Mathf.Min(Screen.width - 24f, 620f);
+            if (width < 260f)
+                width = Screen.width - 12f;
+
+            Rect rect = new Rect((Screen.width - width) * 0.5f, 8f, width, 62f);
+            Color oldColor = GUI.color;
+            GUI.color = Color.white;
+            GUI.Box(rect, GUIContent.none, boxStyle);
+            GUI.color = new Color(1f, 0.45f, 0.45f, 1f);
+            GUI.Label(new Rect(rect.x, rect.y + 2f, rect.width, 24f), "MOD HOST WARNING", labelStyle);
+            GUI.color = new Color(1f, 1f, 1f, 0.9f);
+            GUI.Label(new Rect(rect.x + 10f, rect.y + 27f, rect.width - 20f, 30f), "当前主机未加本模组，模组会失效，状态延迟等严重问题", subLabelStyle);
             GUI.color = oldColor;
         }
 
         private static string GetSubLabel()
         {
-            string progression = ModSettings.IntelligenceProgression ? " | " + ModSettings.ProgressionSummary() : string.Empty;
-            return "Temporal Panic Button" + progression + "  |  MP " + KrokMpBridge.Status;
+            return ModSettings.ProgressionSummary() + " | MP " + KrokMpBridge.Status;
+        }
+
+        private static string GetReadySubLabel()
+        {
+            return ModSettings.ProgressionSummary();
         }
 
         private static float GetProgress(float remaining, float total)
@@ -158,8 +189,9 @@ namespace TemporalPanicButton.Runtime
             subLabelStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = 10,
-                fontStyle = FontStyle.Normal
+                fontSize = 9,
+                fontStyle = FontStyle.Normal,
+                wordWrap = true
             };
         }
 
